@@ -361,7 +361,7 @@ static void sp_tiled_matmul_os(const elem_t * A, const elem_t * B, const void * 
         bool a_transpose, bool b_transpose,
         bool full_C, bool low_D,
         bool no_bias, bool repeating_bias,
-        uint8_t weightA) {
+        uint8_t weightA, uint32_t base_addr, uint32_t base_addr_acc) {
 
   const uint32_t A_sp_addr_start = 0;
   const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * J * DIM;
@@ -482,13 +482,13 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
         bool a_transpose, bool b_transpose,
         bool full_C, bool low_D,
         bool no_bias, bool repeating_bias,
-        uint8_t weightA) {
+        uint8_t weightA, uint32_t base_addr, uint32_t base_addr_acc) {
 
-  /*
-  const uint32_t A_sp_addr_start = 0;
-  const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * J * DIM;
-  const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
-  const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
+/*
+  const uint32_t A_sp_addr_start = base_addr;
+  const uint32_t B_sp_addr_start = base_addr + (BANK_NUM/2) * BANK_ROWS - K * J * DIM;
+  const uint32_t D_sp_addr_start = base_addr_acc + 1 << (ADDR_LEN-1);
+  const uint32_t C_sp_addr_start = base_addr_acc + 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
 
   const int A_blocks = a_transpose ? (I <= MAX_BLOCK_LEN ? I : MAX_BLOCK_LEN) :
     (K <= MAX_BLOCK_LEN ? K : MAX_BLOCK_LEN);
@@ -608,7 +608,7 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
       }
     }
   }
-  */
+*/
 
   // Combined loop
   gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
@@ -672,7 +672,7 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
         bool, bool,
         bool, bool,
         bool, bool,
-        uint8_t);
+        uint8_t,uint32_t,uint32_t);
 
   if (dataflow == OUTPUT_STATIONARY) {
     inner = &sp_tiled_matmul_os;
@@ -695,6 +695,10 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
 
         void * out = k0 == K0-1 ? (int8_t*)C + (i0*tile_I*DIM*stride_C + j0*tile_J*DIM)*sizeof_C : NULL;
 
+        // uint32_t base_addr = ((i0+j0+k0)%2==0) ? 0 :  BANK_NUM * BANK_ROWS/2;
+        // uint32_t base_addr_acc = ((i0+j0+k0)%2==0) ? 0 :  ACC_ROWS/2;
+        uint32_t base_addr = 0;
+        uint32_t base_addr_acc = 0;
         const size_t I = i0 < I0-1 ? tile_I : last_I;
         const size_t J = j0 < J0-1 ? tile_J : last_J;
         const size_t K = k0 < K0-1 ? tile_K : last_K;
@@ -717,7 +721,7 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
             a_transpose, b_transpose,
             full_C, low_D,
             no_bias, repeating_bias,
-            weightA);
+            weightA,base_addr,base_addr_acc);
       }
 
   gemmini_fence();

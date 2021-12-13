@@ -2,7 +2,7 @@ include $(abs_top_srcdir)/Makefrag
 
 tests = \
 	resnet50 \
-	mobilenet \
+	# mobilenet \
 	# alexnet \
 
 tests_baremetal = $(tests:=-baremetal)
@@ -43,7 +43,8 @@ CFLAGS_BAREMETAL := \
 	-T $(BENCH_COMMON)/test.ld \
 	-DBAREMETAL=1 \
 
-all: $(tests_baremetal) $(tests_linux)
+# all: $(tests_baremetal) $(tests_linux)
+all: $(tests_linux)
 
 vpath %.c $(src_dir)
 

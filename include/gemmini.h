@@ -608,14 +608,14 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
       }
     }
   }
-*/
+  */
 
   // Combined loop
   gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
-    A_row_stride, B_row_stride, repeating_bias ? 0 : D_row_stride, C_row_stride,
-    a_transpose, b_transpose,
-    full_C, low_D, !no_bias || D == NULL,
-    weightA);
+   A_row_stride, B_row_stride, repeating_bias ? 0 : D_row_stride, C_row_stride,
+   a_transpose, b_transpose,
+   full_C, low_D, !no_bias || D == NULL,
+   weightA);
 }
 
 static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
@@ -1135,7 +1135,9 @@ static void sp_tiled_conv_A_stride(
         bool wrot180, bool trans_output_1203, bool trans_input_3120,
         bool trans_weight_1203, bool trans_weight_0132,
 
-        bool no_bias, bool no_pool, bool downsample, bool input_dilated) {
+        bool no_bias, bool no_pool, bool downsample, bool input_dilated,
+        uint32_t base_addr, uint32_t base_addr_acc
+        ) {
 
   const int orows = porows * pool_stride + pool_size - 1 - pupad - pdpad;
   const int ocols = pocols * pool_stride + pool_size - 1 - plpad - prpad;
@@ -1171,10 +1173,10 @@ static void sp_tiled_conv_A_stride(
   static uint32_t D_sp_addr_row = 0;
   static uint32_t C_sp_addr_row = 0;
 
-  const uint32_t A_sp_addr_start = 0;
-  const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - B_rows;
-  const uint32_t D_sp_addr_start = (1 << (ADDR_LEN - 1)) + D_sp_addr_row;
-  const uint32_t C_sp_addr_start = (3 << (ADDR_LEN - 2)) + C_sp_addr_row;
+  const uint32_t A_sp_addr_start = base_addr;
+  const uint32_t B_sp_addr_start = base_addr + BANK_NUM * BANK_ROWS - B_rows;
+  const uint32_t D_sp_addr_start = base_addr_acc + (1 << (ADDR_LEN - 1)) + D_sp_addr_row;
+  const uint32_t C_sp_addr_start = base_addr_acc + (3 << (ADDR_LEN - 2)) + C_sp_addr_row;
 
   if (bias != 0) {
     D_sp_addr_row = (D_sp_addr_row + ACC_ROWS / 2) % ACC_ROWS;
@@ -2872,6 +2874,13 @@ static void tiled_conv_A_stride(
                                   in = input + (kch*in_dim*in_dim + ((irow+upad)>>input_dilated)*in_dim + ((icol+lpad)>>input_dilated)) * batch_size + b;
                                 }
 
+
+                                // uint32_t base_addr = ((b+porow+pocol+poch+krow+kcol+kch)%2==0) ? 0 :  BANK_NUM * BANK_ROWS/2;
+                                // uint32_t base_addr_acc = ((b+porow+pocol+poch+krow+kcol+kch)%2==0) ? 0 :  ACC_ROWS/2;
+                                uint32_t base_addr = 0;
+                                uint32_t base_addr_acc = 0;
+
+
                                 sp_tiled_conv_A_stride(
                                     batch_size, in_dim, in_channels,
                                     out_channels, out_dim, pool_out_dim,
@@ -2895,7 +2904,9 @@ static void tiled_conv_A_stride(
                                     wrot180, trans_output_1203, trans_input_3120,
                                     trans_weight_1203, trans_weight_0132,
 
-                                    no_bias, no_pool, downsample, input_dilated);
+                                    no_bias, no_pool, downsample, input_dilated,
+                                    base_addr, base_addr_acc
+                                    );
                             }
                         }
                     }
